@@ -1,0 +1,8 @@
+fn test_func(arg1: TestType1, arg2: TestType2) -> TestType3 {
+    let test: int = 10;
+    let mut test2: int = 20;
+    let mut test3 = arg1;
+
+    return TestType {};
+}
+
