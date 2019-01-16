@@ -12,9 +12,9 @@ pub enum Statement {
 }
 
 #[derive(Debug)]
-pub enum Arithmetic {
-    Node(Node),
-    OpRightNode((Node, RightNode)),
+pub struct Arithmetic {
+    left: Node,
+    right: RightNode,
 }
 
 #[derive(Debug)]
@@ -32,9 +32,9 @@ pub enum Operator {
 }
 
 #[derive(Debug)]
-pub struct Node {
-    n_type: NodeType,
-    inner: Box<dyn Ast>,
+pub enum Node {
+    Number(Number),
+    Arithmetic(Box<Arithmetic>),
 }
 
 #[derive(Debug)]
@@ -42,10 +42,13 @@ pub struct Number {
     inner: String,
 }
 
-#[derive(Debug)]
-pub enum NodeType {
-    Number,
-    Arithmetic,
+impl Arithmetic {
+    pub fn new(left: Node, right: RightNode) -> Arithmetic {
+        Arithmetic {
+            left: left, 
+            right: right,
+        }
+    }
 }
 
 impl RightNode {
@@ -53,15 +56,6 @@ impl RightNode {
         RightNode {
             op: op,
             node: node,
-        }
-    }
-}
-
-impl Node {
-    pub fn new(n_type: NodeType, inner: Box<Ast>) -> Node {
-        Node {
-            n_type: n_type,
-            inner: inner
         }
     }
 }
@@ -74,12 +68,95 @@ impl Number {
     }
 }
 
+impl Ast for Statement {
+    fn check_semantic(&mut self) {
+
+    }
+
+    fn generate_code(&mut self) {
+        println!("  .text");
+        println!(".global _main");
+        println!("");
+        println!("_main:");
+        match self {
+            Statement::Arithmetic(arithmetic) => {
+                arithmetic.generate_code();
+            }
+        }
+        println!("  ret");
+    }
+}
+
+impl Ast for Arithmetic {
+    fn check_semantic(&mut self) {
+
+    }
+
+    fn generate_code(&mut self) {
+        self.left.generate_code();
+        self.right.generate_code();
+    }
+}
+
+impl Ast for Node {
+    fn check_semantic(&mut self) {
+
+    }
+
+    fn generate_code(&mut self) {
+        match self {
+            Node::Arithmetic(arithmetic) => {
+                arithmetic.generate_code();
+            }
+            Node::Number(number) => {
+                number.generate_code();
+            }
+        }
+    }
+}
+
+impl Ast for RightNode {
+    fn check_semantic(&mut self) {
+
+    }
+
+    fn generate_code(&mut self) {
+        self.node.generate_code();
+        self.op.generate_code();
+    }
+}
+
+impl Ast for Operator {
+    fn check_semantic(&mut self) {
+
+    }
+
+    fn generate_code(&mut self) {
+        println!("  pop  %rax");
+        println!("  pop  %rbx");
+        match self {
+            Operator::Plus => {
+                println!("  add %rbx, %rax");
+            }
+            Operator::Minus => {
+                println!("  sub %rbx, %rax");
+            }
+            Operator::Mul => {
+                println!("  mul %rbx");
+            }
+            Operator::Div => {
+                println!("  div %rbx");
+            }
+        }
+    }
+}
+
 impl Ast for Number {
     fn check_semantic(&mut self) {
 
     }
     
     fn generate_code(&mut self) {
-
+        println!("  push ${}", self.inner);
     }
 }

@@ -2,6 +2,7 @@ extern crate my_lang;
 
 use my_lang::tokenizer::Tokenizer;
 use my_lang::parser::Parser;
+use my_lang::ast::Ast;
 use std::env;
 use std::fs::File;
 use std::io::prelude::*;
@@ -34,18 +35,26 @@ fn main() {
             }
         };
 
-        println!("{:#?}", tokens);
+        // println!("{:#?}", tokens);
 
         let mut parser = Parser::new(tokens);
-        let mut ast = match parser.parse() {
-            Ok(ast) => ast,
+        let mut asts = match parser.parse() {
+            Ok(asts) => asts,
             Err(err) => {
                 println!("{}", err);
                 return;
             }
         };
 
-        println!("{:#?}", ast);
+        println!("{:#?}", asts);
+
+        for ast in asts.iter_mut() {
+            ast.check_semantic();
+        }
+
+        for ast in asts.iter_mut() {
+            ast.generate_code();
+        }
 
     } else {
         println!("usage: {} <filepath>", args[0]);
