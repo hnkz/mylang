@@ -37,7 +37,15 @@ fn main() {
         println!("{:#?}", tokens);
 
         let mut parser = Parser::new(tokens);
-        let mut ast = parser.parse();
+        let mut ast = match parser.parse() {
+            Ok(ast) => ast,
+            Err(err) => {
+                println!("{}", err);
+                return;
+            }
+        };
+
+        println!("{:#?}", ast);
 
     } else {
         println!("usage: {} <filepath>", args[0]);

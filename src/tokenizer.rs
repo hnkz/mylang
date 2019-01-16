@@ -1,3 +1,4 @@
+use std::cmp::PartialEq;
 
 #[derive(Debug)]
 pub struct Tokenizer {
@@ -18,13 +19,13 @@ pub enum TokenizeState {
     RightParenthesis,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Token {
     t_type: TokenType,
-    content: String,
+    inner: String,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TokenType {
     Plus,
     Minus,
@@ -37,6 +38,7 @@ pub enum TokenType {
     NewLine,
     LeftParenthesis,
     RightParenthesis,
+    EOF,
 }
 
 impl Tokenizer {
@@ -101,7 +103,7 @@ impl Tokenizer {
                         }
                         _ => {
                             i -= 1;
-                            let token = Token::new(TokenType::Number,  tmp_contents.clone());
+                            let token = Token::new(TokenType::Number,  tmp_contents.to_owned());
                             tmp_contents.clear();
                             tokens.push(token);
                             state = TokenizeState::Normal;
@@ -110,49 +112,60 @@ impl Tokenizer {
                 }
                 TokenizeState::Plus => {
                     i -= 1;
-                    let token = Token::new(TokenType::Plus,  tmp_contents.clone());
+                    let token = Token::new(TokenType::Plus,  tmp_contents.to_owned());
                     tmp_contents.clear();
                     tokens.push(token);
                     state = TokenizeState::Normal;
                 }
                 TokenizeState::Minus => {
                     i -= 1;
-                    let token = Token::new(TokenType::Minus,  tmp_contents.clone());
+                    let token = Token::new(TokenType::Minus,  tmp_contents.to_owned());
                     tmp_contents.clear();
                     tokens.push(token);
                     state = TokenizeState::Normal;
                 }
                 TokenizeState::Asterisk => {
                     i -= 1;
-                    let token = Token::new(TokenType::Asterisk,  tmp_contents.clone());
+                    let token = Token::new(TokenType::Asterisk,  tmp_contents.to_owned());
                     tmp_contents.clear();
                     tokens.push(token);
                     state = TokenizeState::Normal;
                 }
                 TokenizeState::Slash => {
-                    i -= 1;
-                    let token = Token::new(TokenType::Slash,  tmp_contents.clone());
-                    tmp_contents.clear();
-                    tokens.push(token);
-                    state = TokenizeState::Normal;
+                    match c {
+                        '/' => {
+                            while code[i] != '\n' && i < self.len {
+                                i += 1;
+                            }
+                            tmp_contents.clear();
+                            state = TokenizeState::Normal;
+                        }
+                        _ => {
+                            i -= 1;
+                            let token = Token::new(TokenType::Slash,  tmp_contents.to_owned());
+                            tmp_contents.clear();
+                            tokens.push(token);
+                            state = TokenizeState::Normal;
+                        }
+                    }
                 }
                 TokenizeState::NewLine => {
                     i -= 1;
-                    let token = Token::new(TokenType::NewLine,  tmp_contents.clone());
+                    let token = Token::new(TokenType::NewLine,  tmp_contents.to_owned());
                     tmp_contents.clear();
                     tokens.push(token);
                     state = TokenizeState::Normal;
                 }
                 TokenizeState::LeftParenthesis => {
                     i -= 1;
-                    let token = Token::new(TokenType::LeftParenthesis,  tmp_contents.clone());
+                    let token = Token::new(TokenType::LeftParenthesis,  tmp_contents.to_owned());
                     tmp_contents.clear();
                     tokens.push(token);
                     state = TokenizeState::Normal;
                 }
                 TokenizeState::RightParenthesis => {
                     i -= 1;
-                    let token = Token::new(TokenType::RightParenthesis,  tmp_contents.clone());
+                    let token = Token::new(TokenType::RightParenthesis,  tmp_contents.to_owned());
                     tmp_contents.clear();
                     tokens.push(token);
                     state = TokenizeState::Normal;
@@ -165,7 +178,7 @@ impl Tokenizer {
         match state {
             TokenizeState::Normal | TokenizeState::NewLine => {}
             TokenizeState::Number => {
-                let token = Token::new(TokenType::Number,  tmp_contents.clone());
+                let token = Token::new(TokenType::Number,  tmp_contents.to_owned());
                 tokens.push(token);
             }
             _ => {
@@ -173,16 +186,23 @@ impl Tokenizer {
             }
         }
 
+        let token = Token::new(TokenType::EOF, String::new());
+        tokens.push(token);
+
         Ok(tokens)
     }
 }
 
 impl Token {
-    fn new(t_type: TokenType, content: String) -> Token {
+    fn new(t_type: TokenType, inner: String) -> Token {
         Token {
             t_type: t_type,
-            content: content,
+            inner: inner,
         }
+    }
+
+    pub fn get_inner(&self) -> String {
+        self.inner.to_owned()
     }
 
     pub fn get_t_type(&self) -> TokenType {
