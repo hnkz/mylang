@@ -20,10 +20,9 @@ pub enum ParseState {
 }
 
 /*
-    Statement   := Arithmetic ... First { (, Number, - }
-    Arithmetic  := Node RightNode | Node ... First { (, Number, -)}
-    RightNode   := Op Arithmetic
-    Node        := (Arithmetic) | Number | -Number
+    Statement   := Arithmetic
+    Arithmetic  := Node Op Node | Node
+    Node        := (Arithmetic) | Arithmetic | Number | -Number
 */
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Parser {
@@ -57,7 +56,6 @@ impl Parser {
     }
 
     fn get_statement(&mut self) -> Result<Statement, String> {
-        dbg!("statement");
         let statement: Statement;
         let token = if let Some(token) = self.now() {
             token
@@ -79,56 +77,17 @@ impl Parser {
     }
 
     fn get_arithmetic(&mut self) -> Result<Arithmetic, String> {
-        dbg!("arithmetic");
-        let arithmetic: Arithmetic;
+        let mut arithmetic: Arithmetic;
 
         let l_node = match self.get_node() {
             Ok(node) => node,
             Err(err) => return Err(err),
         };
 
-        arithmetic = if self.is_end_of_statement() {
-            Arithmetic::Term(l_node)
-        } else {
-            let mut arithmetic: Arithmetic;
+        arithmetic = Arithmetic::Term(l_node);
 
-            let token = if let Some(token) =  self.now() {
-                token
-            } else {
-                return Err(format!("Token is dead."));
-            };
-
-            let op = match token.get_t_type() {
-                TokenType::Plus => Operator::Plus,
-                TokenType::Minus => Operator::Minus,
-                TokenType::Asterisk => Operator::Mul,
-                TokenType::Slash => Operator::Div,
-                _ => return Err(format!("{:?} is not Operator.", token.get_inner())),
-            };
-
-            self.next();
-
-            let r_node = match self.get_node() {
-                Ok(node) => node,
-                Err(err) => return Err(err),
-            }; 
-
-            arithmetic = Arithmetic::MultiTerm(l_node, op, r_node);
-
+        if !self.is_end_of_statement() {
             while let Some(token) = self.now() {
-                if self.is_end_of_statement() {
-                    break;
-                } else if token.get_t_type() == TokenType::RightParenthesis {
-                    match self.dec_open_paren_count() {
-                        Ok(_) => {}
-                        Err(err) => {
-                            return Err(err);
-                        }
-                    };
-                    self.next();
-                    break;
-                }
-
                 dbg!("arithmetic");
 
                 let op = match token.get_t_type() {
@@ -136,7 +95,7 @@ impl Parser {
                     TokenType::Minus => Operator::Minus,
                     TokenType::Asterisk => Operator::Mul,
                     TokenType::Slash => Operator::Div,
-                    _ => return Err(format!("{:?} is not Operator.", token.get_inner())),
+                    _ => break,
                 };
 
                 self.next();
@@ -156,15 +115,12 @@ impl Parser {
                 };
 
             }
-
-            arithmetic
         };
         
         Ok(arithmetic)
     }
 
     fn get_node(&mut self) -> Result<Node, String> {
-        dbg!("node");
         let node: Node;
         let token = if let Some(token) = self.now() {
             token
@@ -187,6 +143,22 @@ impl Parser {
                     Err(err) => return Err(err),
                 };
                 node = Node::Arithmetic(Box::new(arithmetic));
+
+                let token = if let Some(token) = self.now() {
+                    token
+                } else {
+                    return Err(format!("File is end in the way of Parsing."));
+                };
+                
+                if token.get_t_type() == TokenType::RightParenthesis {
+                    match self.dec_open_paren_count() {
+                        Ok(_) => {}
+                        Err(err) => {
+                            return Err(err);
+                        }
+                    };
+                    self.next();
+                }
             }
             // On the way
             TokenType::Minus => {
