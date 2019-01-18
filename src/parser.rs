@@ -114,7 +114,13 @@ impl Parser {
             while let Some(token) = self.now() {
                 if self.is_end_of_statement() {
                     break;
+                } else if token.get_t_type() == TokenType::RightParenthesis {
+                    self.dec_open_paren_count();
+                    self.next();
+                    break;
                 }
+
+                println!("arithmetic");
 
                 let op = match token.get_t_type() {
                     TokenType::Plus => Operator::Plus,
@@ -173,19 +179,19 @@ impl Parser {
                 };
                 node = Node::Arithmetic(Box::new(arithmetic));
 
-                let token = if let Some(token) = self.now() {
-                    token
-                } else {
-                    return Err(format!("End of file is not EOF Token."));
-                };
+                // let token = if let Some(token) = self.next() {
+                //     token
+                // } else {
+                //     return Err(format!("End of file is not EOF Token."));
+                // };
 
-                // skip right parenthesis
-                if token.get_t_type() != TokenType::RightParenthesis {
-                    return Err(format!("Parenthethis does not match."));
-                } else {
-                    self.dec_open_paren_count();
-                    self.next();
-                }
+                // // skip right parenthesis
+                // if token.get_t_type() != TokenType::RightParenthesis {
+                //     return Err(format!("Parenthethis does not match."));
+                // } else {
+                //     self.dec_open_paren_count();
+                //     self.next();
+                // }
             }
             // On the way
             TokenType::Minus => {
