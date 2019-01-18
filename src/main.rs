@@ -35,7 +35,7 @@ fn main() {
             }
         };
 
-        println!("{:#?}", tokens);
+        dbg!(&tokens);
 
         let mut parser = Parser::new(tokens);
         let mut asts = match parser.parse() {
@@ -46,7 +46,7 @@ fn main() {
             }
         };
 
-        println!("{:#?}", asts);
+        dbg!(&asts);
 
         for ast in asts.iter_mut() {
             ast.check_semantic();

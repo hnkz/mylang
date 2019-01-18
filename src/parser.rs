@@ -57,7 +57,7 @@ impl Parser {
     }
 
     fn get_statement(&mut self) -> Result<Statement, String> {
-        println!("statement");
+        dbg!("statement");
         let statement: Statement;
         let token = if let Some(token) = self.now() {
             token
@@ -70,12 +70,16 @@ impl Parser {
             Err(err) => return Err(err),
         };
         statement = Statement::Arithmetic(arithmetic);
+
+        if self.open_paren_count > 0 {
+            return Err(format!("Parenthesis does not match."));
+        }
         
         Ok(statement)
     }
 
     fn get_arithmetic(&mut self) -> Result<Arithmetic, String> {
-        println!("arithmetic");
+        dbg!("arithmetic");
         let arithmetic: Arithmetic;
 
         let l_node = match self.get_node() {
@@ -115,12 +119,17 @@ impl Parser {
                 if self.is_end_of_statement() {
                     break;
                 } else if token.get_t_type() == TokenType::RightParenthesis {
-                    self.dec_open_paren_count();
+                    match self.dec_open_paren_count() {
+                        Ok(_) => {}
+                        Err(err) => {
+                            return Err(err);
+                        }
+                    };
                     self.next();
                     break;
                 }
 
-                println!("arithmetic");
+                dbg!("arithmetic");
 
                 let op = match token.get_t_type() {
                     TokenType::Plus => Operator::Plus,
@@ -155,7 +164,7 @@ impl Parser {
     }
 
     fn get_node(&mut self) -> Result<Node, String> {
-        println!("node");
+        dbg!("node");
         let node: Node;
         let token = if let Some(token) = self.now() {
             token
@@ -178,20 +187,6 @@ impl Parser {
                     Err(err) => return Err(err),
                 };
                 node = Node::Arithmetic(Box::new(arithmetic));
-
-                // let token = if let Some(token) = self.next() {
-                //     token
-                // } else {
-                //     return Err(format!("End of file is not EOF Token."));
-                // };
-
-                // // skip right parenthesis
-                // if token.get_t_type() != TokenType::RightParenthesis {
-                //     return Err(format!("Parenthethis does not match."));
-                // } else {
-                //     self.dec_open_paren_count();
-                //     self.next();
-                // }
             }
             // On the way
             TokenType::Minus => {
