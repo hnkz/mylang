@@ -1,9 +1,13 @@
-use super::tokenizer::Token;
 use std::fmt::Debug;
 
 pub trait Ast: Debug {
     fn check_semantic(&mut self);
     fn generate_code(&mut self);
+}
+
+#[derive(Debug)]
+pub struct Program {
+    statements: Vec<Statement>,
 }
 
 #[derive(Debug)]
@@ -34,6 +38,18 @@ pub enum Node {
 #[derive(Debug, Clone)]
 pub struct Number {
     inner: String,
+}
+
+impl Program {
+    pub fn new() -> Program {
+        Program {
+            statements: Vec::new(),
+        }
+    }
+
+    pub fn push(&mut self, statement: Statement) {
+        self.statements.push(statement)
+    }
 }
 
 impl Arithmetic {
@@ -83,7 +99,7 @@ impl Number {
     }
 }
 
-impl Ast for Statement {
+impl Ast for Program {
     fn check_semantic(&mut self) {
 
     }
@@ -93,13 +109,27 @@ impl Ast for Statement {
         println!(".global _main");
         println!("");
         println!("_main:");
+
+        for statement in self.statements.iter_mut() {
+            statement.generate_code();
+        }
+
+        println!("  ret");
+    }
+}
+
+impl Ast for Statement {
+    fn check_semantic(&mut self) {
+
+    }
+
+    fn generate_code(&mut self) {
         match self {
             Statement::Arithmetic(arithmetic) => {
                 arithmetic.generate_code();
             }
         }
         println!("  pop %rax");
-        println!("  ret");
     }
 }
 

@@ -17,6 +17,7 @@ pub enum TokenizeState {
     NewLine,
     LeftParenthesis,
     RightParenthesis,
+    Semicolon,
 }
 
 #[derive(Debug, Clone)]
@@ -45,6 +46,7 @@ pub enum TokenType {
     NewLine,
     LeftParenthesis,
     RightParenthesis,
+    Semicolon,
     EOF,
 }
 
@@ -101,6 +103,10 @@ impl Tokenizer {
                             state = TokenizeState::RightParenthesis;
                             tmp_contents.push(c);
                         }
+                        ';' => {
+                            state =TokenizeState::Semicolon;
+                            tmp_contents.push(c);
+                        }
                         _ => {}
                     }
                 }
@@ -111,7 +117,7 @@ impl Tokenizer {
                         }
                         _ => {
                             i -= 1;
-                            let token = Token::new(TokenType::Number, Position::new(i as u32 % line, line), tmp_contents.to_owned());
+                            let token = Token::new(TokenType::Number, Position::new(0u32, line), tmp_contents.to_owned());
                             tmp_contents.clear();
                             tokens.push(token);
                             state = TokenizeState::Normal;
@@ -120,21 +126,21 @@ impl Tokenizer {
                 }
                 TokenizeState::Plus => {
                     i -= 1;
-                    let token = Token::new(TokenType::Plus, Position::new(i as u32 % line, line), tmp_contents.to_owned());
+                    let token = Token::new(TokenType::Plus, Position::new(0u32, line), tmp_contents.to_owned());
                     tmp_contents.clear();
                     tokens.push(token);
                     state = TokenizeState::Normal;
                 }
                 TokenizeState::Minus => {
                     i -= 1;
-                    let token = Token::new(TokenType::Minus,  Position::new(i as u32 % line, line), tmp_contents.to_owned());
+                    let token = Token::new(TokenType::Minus,  Position::new(0u32, line), tmp_contents.to_owned());
                     tmp_contents.clear();
                     tokens.push(token);
                     state = TokenizeState::Normal;
                 }
                 TokenizeState::Asterisk => {
                     i -= 1;
-                    let token = Token::new(TokenType::Asterisk,  Position::new(i as u32 % line, line), tmp_contents.to_owned());
+                    let token = Token::new(TokenType::Asterisk,  Position::new(0u32, line), tmp_contents.to_owned());
                     tmp_contents.clear();
                     tokens.push(token);
                     state = TokenizeState::Normal;
@@ -142,8 +148,8 @@ impl Tokenizer {
                 TokenizeState::Slash => {
                     match c {
                         '/' => {
+                            line += 1;
                             while code[i] != '\n' && i < self.len {
-                                line += 1;
                                 i += 1;
                             }
                             tmp_contents.clear();
@@ -151,7 +157,7 @@ impl Tokenizer {
                         }
                         _ => {
                             i -= 1;
-                            let token = Token::new(TokenType::Slash, Position::new(i as u32 % line, line), tmp_contents.to_owned());
+                            let token = Token::new(TokenType::Slash, Position::new(0u32, line), tmp_contents.to_owned());
                             tmp_contents.clear();
                             tokens.push(token);
                             state = TokenizeState::Normal;
@@ -161,21 +167,28 @@ impl Tokenizer {
                 TokenizeState::NewLine => {
                     i -= 1;
                     line += 1;
-                    let token = Token::new(TokenType::NewLine, Position::new(i as u32 % line, line), tmp_contents.to_owned());
+                    let token = Token::new(TokenType::NewLine, Position::new(0u32, line), tmp_contents.to_owned());
                     tmp_contents.clear();
                     tokens.push(token);
                     state = TokenizeState::Normal;
                 }
                 TokenizeState::LeftParenthesis => {
                     i -= 1;
-                    let token = Token::new(TokenType::LeftParenthesis, Position::new(i as u32 % line, line), tmp_contents.to_owned());
+                    let token = Token::new(TokenType::LeftParenthesis, Position::new(0u32, line), tmp_contents.to_owned());
                     tmp_contents.clear();
                     tokens.push(token);
                     state = TokenizeState::Normal;
                 }
                 TokenizeState::RightParenthesis => {
                     i -= 1;
-                    let token = Token::new(TokenType::RightParenthesis, Position::new(i as u32 % line, line), tmp_contents.to_owned());
+                    let token = Token::new(TokenType::RightParenthesis, Position::new(0u32, line), tmp_contents.to_owned());
+                    tmp_contents.clear();
+                    tokens.push(token);
+                    state = TokenizeState::Normal;
+                }
+                TokenizeState::Semicolon => {
+                    i -= 1;
+                    let token = Token::new(TokenType::Semicolon, Position::new(0u32, line), tmp_contents.to_owned());
                     tmp_contents.clear();
                     tokens.push(token);
                     state = TokenizeState::Normal;
@@ -188,15 +201,19 @@ impl Tokenizer {
         match state {
             TokenizeState::Normal | TokenizeState::NewLine => {}
             TokenizeState::Number => {
-                let token = Token::new(TokenType::Number, Position::new(i as u32 % line, line), tmp_contents.to_owned());
+                let token = Token::new(TokenType::Number, Position::new(0u32, line), tmp_contents.to_owned());
+                tokens.push(token);
+            }
+            TokenizeState::Semicolon => {
+                let token = Token::new(TokenType::Semicolon, Position::new(0u32, line), tmp_contents.to_owned());
                 tokens.push(token);
             }
             _ => {
-                return Err(format!("Tokenize state is incorrect."));
+                return Err(format!("{:?} Tokenize state is incorrect.", state));
             }
         }
 
-        let token = Token::new(TokenType::EOF, Position::new(i as u32 % line, line), String::new());
+        let token = Token::new(TokenType::EOF, Position::new(0u32, line), String::new());
         tokens.push(token);
 
         Ok(tokens)
@@ -213,11 +230,11 @@ impl Token {
     }
 
     pub fn get_line(&self) -> u32 {
-        self.pos.x
+        self.pos.y
     }
 
     pub fn get_x(&self) -> u32 {
-        self.pos.y
+        self.pos.x
     }
 
     pub fn get_inner(&self) -> String {

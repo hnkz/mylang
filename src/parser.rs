@@ -1,5 +1,5 @@
 use super::ast::{
-    Ast, Statement, Arithmetic, Node, Number,
+    Program, Statement, Arithmetic, Node, Number,
     Operator,
 };
 use super::tokenizer::{ Token, TokenType };
@@ -10,7 +10,13 @@ pub struct Parser {
     tokens: Vec<Token>,
     len: usize,
     state: ParseState,
+    err_handler: Vec<String>,
     open_paren_count: u32,
+}
+
+#[derive(Debug)]
+pub struct ParseErrorHandler {
+    err: Vec<String>
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -20,7 +26,7 @@ pub enum ParseState {
 }
 
 /*
-    Statement   := Arithmetic
+    Statement   := Arithmetic ;
     Arithmetic  := Node Op Node | Node
     Node        := (Arithmetic) | Arithmetic | Number | -Number
 */
@@ -32,47 +38,61 @@ impl Parser {
             tokens: tokens,
             len: len,
             state: ParseState::Normal,
+            err_handler: Vec::new(),
             open_paren_count: 0u32,
         }
     }
 
-    pub fn parse(&mut self) -> Result<Vec<Statement>, String> {
-        let mut statements: Vec<Statement> = Vec::new();
+    pub fn parse(&mut self) -> Result<Program, Vec<String>> {
+        let mut program = Program::new();
     
         loop {
-            let token = self.now();
             // end of the file
-            if token.get_t_type() == TokenType::EOF || token.get_t_type() == TokenType::NewLine {
+            let token = self.now();
+            if token.get_t_type() == TokenType::EOF {
                 break;
+            } else if token.get_t_type() == TokenType::NewLine {
+                self.next();
+                continue;
             }
 
-            let statement = match self.get_statement() {
-                Ok(statement) => statement,
-                Err(err) => return Err(err)
+            match self.get_statement() {
+                Ok(statement) => program.push(statement),
+                Err(err) => {
+                    self.err_handler.push(err);
+                    self.skip_to_next_statement();
+                },
             };
-            statements.push(statement);
         }
 
-        Ok(statements)
+        if self.err_handler.len() == 0 {
+            Ok(program)
+        } else {
+            Err(self.err_handler.clone())
+        }
     }
 
+    // Statement   := Arithmetic ;
     fn get_statement(&mut self) -> Result<Statement, String> {
         let statement: Statement;
-        let token = self.now();
 
         let arithmetic = match self.get_arithmetic() {
             Ok(arithmetic) => arithmetic,
             Err(err) => return Err(err),
         };
-        statement = Statement::Arithmetic(arithmetic);
 
-        if self.open_paren_count > 0 {
-            return Err(format!("({}, {}) Parenthesis does not match.", token.get_line(), token.get_x()));
+        let token = self.now();
+        if token.get_t_type() != TokenType::Semicolon {
+            return Err(ParseErrorHandler::create_error(token, "Statement should have Semicolon."));
         }
+        self.next();
+
+        statement = Statement::Arithmetic(arithmetic);
         
         Ok(statement)
     }
 
+    // Arithmetic  := Node Op Node | Node
     fn get_arithmetic(&mut self) -> Result<Arithmetic, String> {
         let mut arithmetic: Arithmetic;
 
@@ -83,7 +103,10 @@ impl Parser {
 
         arithmetic = Arithmetic::Term(l_node);
 
-        if !self.is_end_of_statement() {
+        let t_type = self.now().get_t_type();
+        if  t_type == TokenType::Plus || t_type == TokenType::Minus ||
+            t_type == TokenType::Asterisk || t_type == TokenType::Slash
+        {
             loop {
                 let token = self.now();
                 let op = match token.get_t_type() {
@@ -94,6 +117,7 @@ impl Parser {
                     _ => break,
                 };
 
+                // skip Operator
                 self.next();
 
                 let r_node = match self.get_node() {
@@ -146,54 +170,45 @@ impl Parser {
                         }
                     };
                     self.next();
+                } else {
+                    return Err(ParseErrorHandler::create_error(token, "There isn't Close Parenthesis."));
                 }
             }
             // On the way
             TokenType::Minus => {
                 // Skip Minus
                 self.next();
-                let token = if let Some(token) = self.next() {
-                    token
-                } else {
-                    return Err(format!("File is end in the way of Parsing."));
-                };
+                let token = self.next();
 
                 return Err(format!(""));
             }
             _ => {
-                return Err(format!("({}, {}) {:?} is not first token of Node.", token.get_line(), token.get_x(), token.get_inner()));
+                return Err(ParseErrorHandler::create_error(token, "is not first token of Node."));
             }
         }
 
         Ok(node)
     }
 
-    fn is_end_of_statement(&self) -> bool {
-        let token = self.now();
-        match token.get_t_type() {
-            TokenType::EOF | TokenType::NewLine => {
-                true
-            }
-            _ => {
-                false
-            }
+    fn skip_to_next_statement(&mut self) {
+        let mut token = self.now();
+        let mut t_type = token.get_t_type();
+        while t_type != TokenType::NewLine && t_type != TokenType::EOF {
+            token = self.next();
+            t_type = token.get_t_type();
         }
+        self.next();
     }
 
     fn now(&self) -> Token {
         self.tokens[self.index].clone()
     }
 
-    fn next(&mut self) -> Option<Token> {
-        let res: Option<Token>;
+    fn next(&mut self) -> Token {
         if self.index + 1 < self.len {
             self.index += 1;
-            res = Some(self.tokens[self.index].clone());
-        } else {
-            res = None;
         }
-
-        res
+        self.tokens[self.index].clone()
     }
 
     fn before(&mut self) -> Option<Token> {
@@ -214,10 +229,22 @@ impl Parser {
     fn dec_open_paren_count(&mut self) -> Result<(), String> {
         if self.open_paren_count == 0 {
             let token = self.now();
-            return Err(format!("({}, {}) Parenthethis does not match.", token.get_line(), token.get_x()));
+            return Err(ParseErrorHandler::create_error(token, "Parenthethis does not match."));
         }
         self.open_paren_count -= 1;
 
         Ok(())
+    }
+}
+
+impl ParseErrorHandler {
+    pub fn new() -> ParseErrorHandler {
+        ParseErrorHandler {
+            err: Vec::new(),
+        }
+    }
+
+    pub fn create_error(token: Token, sentence: &str) -> String {
+        format!("({}, {}) \"{:?} {}\" {}", token.get_line(), token.get_x(), token.get_t_type(), token.get_inner(), sentence)
     }
 }

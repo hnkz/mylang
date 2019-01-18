@@ -40,21 +40,19 @@ fn main() {
         let mut parser = Parser::new(tokens);
         let mut asts = match parser.parse() {
             Ok(asts) => asts,
-            Err(err) => {
-                println!("{}", err);
+            Err(errs) => {
+                for err in errs {
+                    println!("{}", err);
+                }
                 return;
             }
         };
 
         dbg!(&asts);
 
-        for ast in asts.iter_mut() {
-            ast.check_semantic();
-        }
+        asts.check_semantic();
 
-        for ast in asts.iter_mut() {
-            ast.generate_code();
-        }
+        asts.generate_code();
 
     } else {
         println!("usage: {} <filepath>", args[0]);
