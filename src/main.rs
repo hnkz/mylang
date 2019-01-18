@@ -35,7 +35,7 @@ fn main() {
             }
         };
 
-        // println!("{:#?}", tokens);
+        println!("{:#?}", tokens);
 
         let mut parser = Parser::new(tokens);
         let mut asts = match parser.parse() {

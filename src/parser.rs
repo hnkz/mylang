@@ -1,5 +1,5 @@
 use super::ast::{
-    Ast, Statement, Arithmetic, RightNode, Node, Number,
+    Ast, Statement, Arithmetic, Node, Number,
     Operator,
 };
 use super::tokenizer::{ Token, TokenType };
@@ -65,18 +65,11 @@ impl Parser {
             return Err(format!("End of file is not EOF Token."));
         };
 
-        match token.get_t_type() {
-            TokenType::Number | TokenType::LeftParenthesis | TokenType::Minus => {
-                let arithmetic = match self.get_arithmetic() {
-                    Ok(arithmetic) => arithmetic,
-                    Err(err) => return Err(err),
-                };
-                statement = Statement::Arithmetic(arithmetic);
-            }
-            _ => {
-                return Err(format!("{:?} is not first token of Statement.", token.get_inner()));
-            }
-        }
+        let arithmetic = match self.get_arithmetic() {
+            Ok(arithmetic) => arithmetic,
+            Err(err) => return Err(err),
+        };
+        statement = Statement::Arithmetic(arithmetic);
         
         Ok(statement)
     }
@@ -84,66 +77,75 @@ impl Parser {
     fn get_arithmetic(&mut self) -> Result<Arithmetic, String> {
         println!("arithmetic");
         let arithmetic: Arithmetic;
-        let token = if let Some(token) = self.now() {
-            token
-        } else {
-            return Err(format!("End of file is not EOF Token."));
-        };
-        match token.get_t_type() {
-            TokenType::Number => {
-                let node = match self.get_node() {
-                    Ok(node) => node,
-                    Err(err) => return Err(err),
-                };
-                
-                let right_node = match self.get_rightnode() {
-                    Ok(right_node) => right_node,
-                    Err(err) => return Err(err),
-                };
 
-                arithmetic = Arithmetic::new(node, right_node);
-            }
-            TokenType::LeftParenthesis => {
-                return Err(format!(""));
-            }
-            TokenType::Minus => {
-                return Err(format!(""));
-            }
-            _ => {
-                return Err(format!("{:?} is not first token of Statement.", token.get_inner()));
-            }
-        }
-        
-        Ok(arithmetic)
-    }
-
-    fn get_rightnode(&mut self) -> Result<RightNode, String> {
-        println!("rightnode");
-        let right_node: RightNode;
-        let op: Operator;
-        let op_token = if let Some(token) = self.now() {
-            token
-        } else {
-            return Err(format!("End of file is not EOF Token."));
-        };
-
-        op = match op_token.get_t_type() {
-            TokenType::Plus => Operator::Plus,
-            TokenType::Minus => Operator::Minus,
-            TokenType::Asterisk => Operator::Mul,
-            TokenType::Slash => Operator::Div,
-            _ => return Err(format!("{:?} is not Operator.", op_token.get_inner())),
-        };
-
-        self.next();
-        let node = match self.get_node() {
+        let l_node = match self.get_node() {
             Ok(node) => node,
             Err(err) => return Err(err),
         };
 
-        right_node = RightNode::new(op, node);
+        arithmetic = if self.is_end_of_statement() {
+            Arithmetic::Term(l_node)
+        } else {
+            let mut arithmetic: Arithmetic;
+
+            let token = if let Some(token) =  self.now() {
+                token
+            } else {
+                return Err(format!("Token is dead."));
+            };
+
+            let op = match token.get_t_type() {
+                TokenType::Plus => Operator::Plus,
+                TokenType::Minus => Operator::Minus,
+                TokenType::Asterisk => Operator::Mul,
+                TokenType::Slash => Operator::Div,
+                _ => return Err(format!("{:?} is not Operator.", token.get_inner())),
+            };
+
+            self.next();
+
+            let r_node = match self.get_node() {
+                Ok(node) => node,
+                Err(err) => return Err(err),
+            }; 
+
+            arithmetic = Arithmetic::MultiTerm(l_node, op, r_node);
+
+            while let Some(token) = self.now() {
+                if self.is_end_of_statement() {
+                    break;
+                }
+
+                let op = match token.get_t_type() {
+                    TokenType::Plus => Operator::Plus,
+                    TokenType::Minus => Operator::Minus,
+                    TokenType::Asterisk => Operator::Mul,
+                    TokenType::Slash => Operator::Div,
+                    _ => return Err(format!("{:?} is not Operator.", token.get_inner())),
+                };
+
+                self.next();
+
+                let r_node = match self.get_node() {
+                    Ok(node) => node,
+                    Err(err) => return Err(err),
+                };
+
+                arithmetic = match op {
+                    Operator::Plus | Operator::Minus => {
+                        arithmetic.insert_top(op, r_node)
+                    }
+                    Operator::Mul | Operator::Div => {
+                        arithmetic.insert_right(op, r_node)
+                    }
+                };
+
+            }
+
+            arithmetic
+        };
         
-        Ok(right_node)
+        Ok(arithmetic)
     }
 
     fn get_node(&mut self) -> Result<Node, String> {
@@ -170,6 +172,20 @@ impl Parser {
                     Err(err) => return Err(err),
                 };
                 node = Node::Arithmetic(Box::new(arithmetic));
+
+                let token = if let Some(token) = self.now() {
+                    token
+                } else {
+                    return Err(format!("End of file is not EOF Token."));
+                };
+
+                // skip right parenthesis
+                if token.get_t_type() != TokenType::RightParenthesis {
+                    return Err(format!("Parenthethis does not match."));
+                } else {
+                    self.dec_open_paren_count();
+                    self.next();
+                }
             }
             // On the way
             TokenType::Minus => {
@@ -189,6 +205,21 @@ impl Parser {
         }
 
         Ok(node)
+    }
+
+    fn is_end_of_statement(&self) -> bool {
+        if let Some(token) = self.now() {
+            match token.get_t_type() {
+                TokenType::EOF | TokenType::NewLine => {
+                    true
+                }
+                _ => {
+                    false
+                }
+            }
+        } else {
+            true
+        }
     }
 
     fn now(&self) -> Option<Token> {
@@ -226,7 +257,12 @@ impl Parser {
     }
 
     // Decrement Open parenthesis count
-    fn dec_open_paren_count(&mut self) {
+    fn dec_open_paren_count(&mut self) -> Result<(), String> {
+        if self.open_paren_count == 0 {
+            return Err(format!("Parenthethis does not match."));
+        }
         self.open_paren_count -= 1;
+
+        Ok(())
     }
 }

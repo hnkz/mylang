@@ -11,19 +11,13 @@ pub enum Statement {
     Arithmetic(Arithmetic),
 }
 
-#[derive(Debug)]
-pub struct Arithmetic {
-    left: Node,
-    right: RightNode,
+#[derive(Debug, Clone)]
+pub enum Arithmetic {
+    Term(Node),
+    MultiTerm(Node, Operator, Node),
 }
 
-#[derive(Debug)]
-pub struct RightNode {
-    op: Operator,
-    node: Node,
-}
-
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Operator {
     Plus,
     Minus,
@@ -31,33 +25,54 @@ pub enum Operator {
     Div,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Node {
     Number(Number),
     Arithmetic(Box<Arithmetic>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Number {
     inner: String,
 }
 
 impl Arithmetic {
-    pub fn new(left: Node, right: RightNode) -> Arithmetic {
-        Arithmetic {
-            left: left, 
-            right: right,
+    pub fn insert_right(&mut self, newop: Operator, r_node: Node) -> Arithmetic {
+        match self {
+            Arithmetic::Term(term) => {
+                Arithmetic::MultiTerm(term.clone(), newop, r_node)
+            }
+            Arithmetic::MultiTerm(left, op, right) => {
+                Arithmetic::MultiTerm(left.clone(), op.clone(), Node::Arithmetic(Box::new(Arithmetic::MultiTerm(right.clone(), newop, r_node))))
+            }
+        }
+    }
+
+    pub fn insert_top(&mut self, newop: Operator, r_node: Node) -> Arithmetic {
+        match self {
+            Arithmetic::Term(term) => {
+                Arithmetic::MultiTerm(term.clone(), newop, r_node)
+            }
+            Arithmetic::MultiTerm(left, op, right) => {
+                Arithmetic::MultiTerm(Node::Arithmetic(Box::new(self.clone())), newop, r_node)
+            }
+        }
+    }
+
+    pub fn get_op_type(&self) -> Option<Operator> {
+        match self {
+            Arithmetic::Term(_) => {
+                None
+            }
+            Arithmetic::MultiTerm(_, op, _) => {
+                Some(*op)
+            }
         }
     }
 }
 
-impl RightNode {
-    pub fn new(op: Operator, node: Node) -> RightNode {
-        RightNode {
-            op: op,
-            node: node,
-        }
-    }
+impl Operator {
+    
 }
 
 impl Number {
@@ -83,6 +98,7 @@ impl Ast for Statement {
                 arithmetic.generate_code();
             }
         }
+        println!("  pop %rax");
         println!("  ret");
     }
 }
@@ -93,8 +109,16 @@ impl Ast for Arithmetic {
     }
 
     fn generate_code(&mut self) {
-        self.left.generate_code();
-        self.right.generate_code();
+        match self {
+            Arithmetic::Term(term) => {
+                term.generate_code();
+            }
+            Arithmetic::MultiTerm(left, op, right) => {
+                left.generate_code();
+                right.generate_code();
+                op.generate_code();
+            }
+        }
     }
 }
 
@@ -115,25 +139,14 @@ impl Ast for Node {
     }
 }
 
-impl Ast for RightNode {
-    fn check_semantic(&mut self) {
-
-    }
-
-    fn generate_code(&mut self) {
-        self.node.generate_code();
-        self.op.generate_code();
-    }
-}
-
 impl Ast for Operator {
     fn check_semantic(&mut self) {
 
     }
 
     fn generate_code(&mut self) {
-        println!("  pop  %rax");
         println!("  pop  %rbx");
+        println!("  pop  %rax");
         match self {
             Operator::Plus => {
                 println!("  add %rbx, %rax");
@@ -148,6 +161,8 @@ impl Ast for Operator {
                 println!("  div %rbx");
             }
         }
+
+        println!("  push %rax");
     }
 }
 
