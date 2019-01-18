@@ -39,7 +39,8 @@ impl Parser {
     pub fn parse(&mut self) -> Result<Vec<Statement>, String> {
         let mut statements: Vec<Statement> = Vec::new();
     
-        while let Some(token) = self.now() {
+        loop {
+            let token = self.now();
             // end of the file
             if token.get_t_type() == TokenType::EOF || token.get_t_type() == TokenType::NewLine {
                 break;
@@ -57,11 +58,7 @@ impl Parser {
 
     fn get_statement(&mut self) -> Result<Statement, String> {
         let statement: Statement;
-        let token = if let Some(token) = self.now() {
-            token
-        } else {
-            return Err(format!("End of file is not EOF Token."));
-        };
+        let token = self.now();
 
         let arithmetic = match self.get_arithmetic() {
             Ok(arithmetic) => arithmetic,
@@ -70,7 +67,7 @@ impl Parser {
         statement = Statement::Arithmetic(arithmetic);
 
         if self.open_paren_count > 0 {
-            return Err(format!("Parenthesis does not match."));
+            return Err(format!("({}, {}) Parenthesis does not match.", token.get_line(), token.get_x()));
         }
         
         Ok(statement)
@@ -87,9 +84,8 @@ impl Parser {
         arithmetic = Arithmetic::Term(l_node);
 
         if !self.is_end_of_statement() {
-            while let Some(token) = self.now() {
-                dbg!("arithmetic");
-
+            loop {
+                let token = self.now();
                 let op = match token.get_t_type() {
                     TokenType::Plus => Operator::Plus,
                     TokenType::Minus => Operator::Minus,
@@ -122,11 +118,7 @@ impl Parser {
 
     fn get_node(&mut self) -> Result<Node, String> {
         let node: Node;
-        let token = if let Some(token) = self.now() {
-            token
-        } else {
-            return Err(format!("End of file is not EOF Token."));
-        };
+        let token = self.now();
 
         match token.get_t_type() {
             TokenType::Number  => {
@@ -144,11 +136,7 @@ impl Parser {
                 };
                 node = Node::Arithmetic(Box::new(arithmetic));
 
-                let token = if let Some(token) = self.now() {
-                    token
-                } else {
-                    return Err(format!("File is end in the way of Parsing."));
-                };
+                let token = self.now();
                 
                 if token.get_t_type() == TokenType::RightParenthesis {
                     match self.dec_open_paren_count() {
@@ -167,13 +155,13 @@ impl Parser {
                 let token = if let Some(token) = self.next() {
                     token
                 } else {
-                    return Err(format!("End of file is not EOF Token."));
+                    return Err(format!("File is end in the way of Parsing."));
                 };
 
                 return Err(format!(""));
             }
             _ => {
-                return Err(format!("{:?} is not first token of Node.", token.get_inner()));
+                return Err(format!("({}, {}) {:?} is not first token of Node.", token.get_line(), token.get_x(), token.get_inner()));
             }
         }
 
@@ -181,26 +169,19 @@ impl Parser {
     }
 
     fn is_end_of_statement(&self) -> bool {
-        if let Some(token) = self.now() {
-            match token.get_t_type() {
-                TokenType::EOF | TokenType::NewLine => {
-                    true
-                }
-                _ => {
-                    false
-                }
+        let token = self.now();
+        match token.get_t_type() {
+            TokenType::EOF | TokenType::NewLine => {
+                true
             }
-        } else {
-            true
+            _ => {
+                false
+            }
         }
     }
 
-    fn now(&self) -> Option<Token> {
-        if self.index < self.len {
-            Some(self.tokens[self.index].clone())
-        } else {
-            None
-        }
+    fn now(&self) -> Token {
+        self.tokens[self.index].clone()
     }
 
     fn next(&mut self) -> Option<Token> {
@@ -232,7 +213,8 @@ impl Parser {
     // Decrement Open parenthesis count
     fn dec_open_paren_count(&mut self) -> Result<(), String> {
         if self.open_paren_count == 0 {
-            return Err(format!("Parenthethis does not match."));
+            let token = self.now();
+            return Err(format!("({}, {}) Parenthethis does not match.", token.get_line(), token.get_x()));
         }
         self.open_paren_count -= 1;
 
